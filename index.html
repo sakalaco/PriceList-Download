@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+<meta charset="UTF-8">
+<title>لیست محصولات مشتریان</title>
+<link rel="stylesheet" href="https://cdn.fontcdn.ir/Font/Vazir/Vazir.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+body { font-family: 'Vazir', sans-serif; direction: rtl; padding: 10px; background: #f9f9f9; }
+h2 { margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+.filters { margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; }
+.filter-row { display: flex; align-items: center; gap: 10px; }
+.filter-option { display: inline-block; padding: 5px 15px; border: 1px solid #ccc; border-radius: 8px; margin: 3px; cursor: pointer; transition: 0.2s; background: white; }
+.filter-option.active { background: #007bff; color: white; border-color: #007bff; }
+.filter-option.main-active { background: #28a745; color: white; border-color: #28a745; } 
+table { border-collapse: collapse; margin-top: 20px; background: white; font-size: 18px; width: auto; table-layout: auto; }
+th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: center; white-space: nowrap; }
+th { background: #f0f0f0; }
+button { margin-bottom: 15px; padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; }
+#reset-btn { background: #dc3545; color: white; }
+#reset-btn:hover { background: #c82333; }
+#export-pdf-btn { background: #28a745; color: white; margin-left: 10px; }
+#export-pdf-btn:hover { background: #218838; }
+#export-png-btn { background: #007bff; color: white; }
+#export-png-btn:hover { background: #0069d9; }
+.sub-filters { display: flex; gap: 5px; flex-wrap: wrap; }
+.separator { width: 1px; background: #ccc; margin: 0 8px; align-self: stretch; }
+.button-group { display: flex; gap: 10px; margin-bottom: 15px; }
+#current-date { margin-top: 15px; font-size: 16px; text-align: left; font-weight: bold; }
+#price-note { margin-top: 5px; font-size: 14px; text-align: left; font-weight: normal; }
+</style>
+</head>
+<body>
+
+<h2>📥 لیست محصولات مشتریان</h2>
+
+<div class="button-group">
+  <button id="reset-btn">Reset Filters</button>
+  <button id="export-pdf-btn">DOWNLOAD PDF</button>
+  <button id="export-png-btn">DOWNLOAD PNG</button>
+</div>
+
+<div class="filters" id="filter-category"></div>
+
+
+</div>
+
+<table id="product-table">
+  <thead>
+    <tr>
+      <th>نام محصول<br><span class="small-text">*** تمامی قیمت ها به تومان می باشد ***</span></th>
+      <th>طرح عمومی</th>
+      <th> چاپ اختصاصی </th>
+      <th>چاپ اختصاصی <br><span class="small-text">زیر 1000 عدد</span></th>
+      <th>چاپ اختصاصی <br><span class="small-text">بالای 1000 عدد</span></th>
+      <th>قیمت درب</th>
+    </tr>
+  </thead>
+  <tbody id="product-list"></tbody>
+</table>
+
+<style>
+  /* استایل برای متن‌های کوچکتر */
+  .small-text {
+    font-size: 12px; /* فونت کوچکتر */
+    color: #555; /* رنگ متن کوچک‌تر */
+  }
+
+  /* تنظیم فاصله بین خطوط */
+  th {
+    text-align: center;
+    line-height: 1.6; /* تنظیم فاصله بین خطوط در تیترها */
+  }
+</style>
+
+<div id="current-date"></div>
+<div id="price-note">اعتبار این لیست قیمت 24 ساعت پس از انتشار آن می باشد</div>
+
+<script>
+const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTvY_Dh9wfH7UGfgFOzGhAKwl8nD4lFK9cCHFzTKiu7JfjuZ6QbGAuD_Z_6V9_B_VLvZo21V2kRU4VN/pub?output=csv";
+let allData = [];
+let activeFilters = { subcategory: [] };
+
+function formatNumber(num) {
+  if (!num || isNaN(Number(num)) || Number(num) === 0) return "";
+  return Number(num).toLocaleString('fa-IR');
+}
+
+// دریافت داده‌ها
+fetch(sheetUrl)
+.then(res => res.text())
+.then(text => {
+  const rows = text.split("\n").map(r => r.split(","));
+  const headers = rows[0];
+  const data = rows.slice(1).map(r => {
+    let obj = {};
+    headers.forEach((h,i) => obj[h.trim()] = r[i]);
+    return obj;
+  });
+  allData = data;
+  createFilters(allData);
+  renderTable();
+});
+
+// ایجاد فیلترها
+function createFilters(data) {
+  const container = document.getElementById("filter-category");
+  container.innerHTML = "";
+  let categories = [...new Set(data.map(d => d.category).filter(Boolean))];
+
+  categories.forEach(cat => {
+    const row = document.createElement("div");
+    row.className = "filter-row";
+
+    let btn = document.createElement("div");
+    btn.className = "filter-option";
+    btn.innerText = cat;
+
+    let subContainer = document.createElement("div");
+    subContainer.className = "sub-filters";
+    let subValues = [...new Set(data.filter(d => d.category===cat).map(d=>d.PPL).filter(Boolean))];
+
+    let subButtons = [];
+    subValues.forEach(sub => {
+      let subBtn = document.createElement("div");
+      subBtn.className = "filter-option";
+      subBtn.innerText = sub;
+      if (activeFilters.subcategory.includes(sub)) subBtn.classList.add("active");
+
+      subBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (activeFilters.subcategory.includes(sub)) {
+          activeFilters.subcategory = activeFilters.subcategory.filter(x => x!==sub);
+          subBtn.classList.remove("active");
+        } else {
+          activeFilters.subcategory.push(sub);
+          subBtn.classList.add("active");
+        }
+        updateMainButtonColor();
+        renderTable();
+      };
+      subContainer.appendChild(subBtn);
+      subButtons.push(subBtn);
+    });
+
+    if(subValues.length > 0){ subContainer.style.display = "flex"; }
+
+    btn.onclick = () => {
+      const allActive = subValues.every(sub => activeFilters.subcategory.includes(sub));
+      if(allActive){
+        subValues.forEach((sub, i) => {
+          activeFilters.subcategory = activeFilters.subcategory.filter(x => x!==sub);
+          subButtons[i].classList.remove("active");
+        });
+      } else {
+        subValues.forEach((sub, i) => {
+          if(!activeFilters.subcategory.includes(sub)){
+            activeFilters.subcategory.push(sub);
+            subButtons[i].classList.add("active");
+          }
+        });
+      }
+      updateMainButtonColor();
+      renderTable();
+    };
+
+    row.appendChild(btn);
+    const separator = document.createElement("div");
+    separator.className = "separator";
+    row.appendChild(separator);
+    row.appendChild(subContainer);
+    container.appendChild(row);
+  });
+}
+
+// بروزرسانی رنگ دسته اصلی
+function updateMainButtonColor(){
+  document.querySelectorAll(".filter-row").forEach(row=>{
+    const mainBtn = row.querySelector(".filter-option:first-child");
+    const subButtons = row.querySelectorAll(".sub-filters .filter-option");
+    const allActive = Array.from(subButtons).length > 0 && Array.from(subButtons).every(btn => btn.classList.contains("active"));
+    if(allActive){
+      mainBtn.classList.add("main-active");
+    } else {
+      mainBtn.classList.remove("main-active");
+    }
+  });
+}
+
+// رندر جدول
+function renderTable() {
+  const tbody = document.getElementById("product-list");
+  tbody.innerHTML = "";
+
+  let filtered = allData.filter(item => {
+    let subMatch = activeFilters.subcategory.length===0 || activeFilters.subcategory.includes(item.PPL);
+    return subMatch;
+  });
+
+  filtered.forEach(item => {
+    let tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${item.name || ""}</td>
+      <td>${formatNumber(item.price_omomi)}</td>
+      <td>${formatNumber(item.price_digital)}</td>
+      <td>${formatNumber(item.price_1000)}</td>
+      <td>${formatNumber(item.price_box)}</td>
+      <td>${formatNumber(item.door)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// تاریخ و ساعت شمسی
+function getPersianDateTime() {
+  const now = new Date();
+  return new Intl.DateTimeFormat('fa-IR', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  }).format(now);
+}
+function updateDateTime() {
+  document.getElementById('current-date').innerText = getPersianDateTime();
+}
+setInterval(updateDateTime, 1000);
+updateDateTime();
+
+// خروجی PNG و PDF با عرض دقیق جدول و عنوان SAKALA
+function generateExport(type) {
+  const table = document.getElementById("product-table");
+  const container = document.createElement("div");
+  container.style.background = "#fff";
+  container.style.padding = "20px";
+  container.style.direction = "rtl";
+  container.style.fontFamily = "'Vazir', sans-serif";
+  container.style.display = "inline-block"; // اندازه براساس جدول
+
+  const title = document.createElement("div");
+  title.innerText = "SAKALA";
+  title.style.fontSize = "32px";
+  title.style.fontWeight = "bold";
+  title.style.textAlign = "center";
+  title.style.marginBottom = "20px";
+
+  container.appendChild(title);
+  container.appendChild(table.cloneNode(true));
+  container.appendChild(document.getElementById("current-date").cloneNode(true));
+  container.appendChild(document.getElementById("price-note").cloneNode(true));
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+<meta charset="UTF-8">
+<title>لیست محصولات مشتریان</title>
+<link rel="stylesheet" href="https://cdn.fontcdn.ir/Font/Vazir/Vazir.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+body { font-family: 'Vazir', sans-serif; direction: rtl; padding: 10px; background: #f9f9f9; }
+h2 { margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+.filters { margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; }
+.filter-row { display: flex; align-items: center; gap: 10px; }
+.filter-option { display: inline-block; padding: 5px 15px; border: 1px solid #ccc; border-radius: 8px; margin: 3px; cursor: pointer; transition: 0.2s; background: white; }
+.filter-option.active { background: #007bff; color: white; border-color: #007bff; }
+.filter-option.main-active { background: #28a745; color: white; border-color: #28a745; } 
+table { border-collapse: collapse; margin-top: 20px; background: white; font-size: 18px; width: auto; table-layout: auto; }
+th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: center; white-space: nowrap; }
+th { background: #f0f0f0; }
+button { margin-bottom: 15px; padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; }
+#reset-btn { background: #dc3545; color: white; }
+#reset-btn:hover { background: #c82333; }
+#export-pdf-btn { background: #28a745; color: white; margin-left: 10px; }
+#export-pdf-btn:hover { background: #218838; }
+#export-png-btn { background: #007bff; color: white; }
+#export-png-btn:hover { background: #0069d9; }
+.sub-filters { display: flex; gap: 5px; flex-wrap: wrap; }
+.separator { width: 1px; background: #ccc; margin: 0 8px; align-self: stretch; }
+.button-group { display: flex; gap: 10px; margin-bottom: 15px; }
+#current-date { margin-top: 15px; font-size: 16px; text-align: left; font-weight: bold; }
+#price-note { margin-top: 5px; font-size: 14px; text-align: left; font-weight: normal; }
+</style>
+</head>
+<body>
+
+
+
+<script>
+const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTvY_Dh9wfH7UGfgFOzGhAKwl8nD4lFK9cCHFzTKiu7JfjuZ6QbGAuD_Z_6V9_B_VLvZo21V2kRU4VN/pub?output=csv";
+let allData = [];
+let activeFilters = { subcategory: [] };
+
+function formatNumber(num) {
+  if (!num || isNaN(Number(num)) || Number(num) === 0) return "";
+  return Number(num).toLocaleString('fa-IR');
+}
+
+// دریافت داده‌ها
+fetch(sheetUrl)
+.then(res => res.text())
+.then(text => {
+  const rows = text.split("\n").map(r => r.split(","));
+  const headers = rows[0];
+  const data = rows.slice(1).map(r => {
+    let obj = {};
+    headers.forEach((h,i) => obj[h.trim()] = r[i]);
+    return obj;
+  });
+  allData = data;
+  createFilters(allData);
+  renderTable();
+});
+
+// ایجاد فیلترها
+function createFilters(data) {
+  const container = document.getElementById("filter-category");
+  container.innerHTML = "";
+  let categories = [...new Set(data.map(d => d.category).filter(Boolean))];
+
+  categories.forEach(cat => {
+    const row = document.createElement("div");
+    row.className = "filter-row";
+
+    let btn = document.createElement("div");
+    btn.className = "filter-option";
+    btn.innerText = cat;
+
+    let subContainer = document.createElement("div");
+    subContainer.className = "sub-filters";
+    let subValues = [...new Set(data.filter(d => d.category===cat).map(d=>d.PPL).filter(Boolean))];
+
+    let subButtons = [];
+    subValues.forEach(sub => {
+      let subBtn = document.createElement("div");
+      subBtn.className = "filter-option";
+      subBtn.innerText = sub;
+      if (activeFilters.subcategory.includes(sub)) subBtn.classList.add("active");
+
+      subBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (activeFilters.subcategory.includes(sub)) {
+          activeFilters.subcategory = activeFilters.subcategory.filter(x => x!==sub);
+          subBtn.classList.remove("active");
+        } else {
+          activeFilters.subcategory.push(sub);
+          subBtn.classList.add("active");
+        }
+        updateMainButtonColor();
+        renderTable();
+      };
+      subContainer.appendChild(subBtn);
+      subButtons.push(subBtn);
+    });
+
+    if(subValues.length > 0){ subContainer.style.display = "flex"; }
+
+    btn.onclick = () => {
+      const allActive = subValues.every(sub => activeFilters.subcategory.includes(sub));
+      if(allActive){
+        subValues.forEach((sub, i) => {
+          activeFilters.subcategory = activeFilters.subcategory.filter(x => x!==sub);
+          subButtons[i].classList.remove("active");
+        });
+      } else {
+        subValues.forEach((sub, i) => {
+          if(!activeFilters.subcategory.includes(sub)){
+            activeFilters.subcategory.push(sub);
+            subButtons[i].classList.add("active");
+          }
+        });
+      }
+      updateMainButtonColor();
+      renderTable();
+    };
+
+    row.appendChild(btn);
+    const separator = document.createElement("div");
+    separator.className = "separator";
+    row.appendChild(separator);
+    row.appendChild(subContainer);
+    container.appendChild(row);
+  });
+}
+
+// بروزرسانی رنگ دسته اصلی
+function updateMainButtonColor(){
+  document.querySelectorAll(".filter-row").forEach(row=>{
+    const mainBtn = row.querySelector(".filter-option:first-child");
+    const subButtons = row.querySelectorAll(".sub-filters .filter-option");
+    const allActive = Array.from(subButtons).length > 0 && Array.from(subButtons).every(btn => btn.classList.contains("active"));
+    if(allActive){
+      mainBtn.classList.add("main-active");
+    } else {
+      mainBtn.classList.remove("main-active");
+    }
+  });
+}
+
+// رندر جدول
+function renderTable() {
+  const tbody = document.getElementById("product-list");
+  tbody.innerHTML = "";
+
+  let filtered = allData.filter(item => {
+    let subMatch = activeFilters.subcategory.length===0 || activeFilters.subcategory.includes(item.PPL);
+    return subMatch;
+  });
+
+  filtered.forEach(item => {
+    let tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${item.name || ""}</td>
+      <td>${formatNumber(item.price_omomi)}</td>
+      <td>${formatNumber(item.price_digital)}</td>
+      <td>${formatNumber(item.price_1000)}</td>
+      <td>${formatNumber(item.price_box)}</td>
+      <td>${formatNumber(item.door)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// تاریخ و ساعت شمسی
+function getPersianDateTime() {
+  const now = new Date();
+  return new Intl.DateTimeFormat('fa-IR', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  }).format(now);
+}
+function updateDateTime() {
+  document.getElementById('current-date').innerText = getPersianDateTime();
+}
+setInterval(updateDateTime, 1000);
+updateDateTime();
+
+// خروجی PNG و PDF اصلاح شده
+function generateExport(type) {
+  const table = document.getElementById("product-table");
+  const container = document.createElement("div");
+  container.style.background = "#fff";
+  container.style.padding = "20px";
+  container.style.direction = "rtl";
+  container.style.fontFamily = "'Vazir', sans-serif";
+  container.style.display = "inline-block";
+
+  const title = document.createElement("div");
+  title.innerText = "SAKALA";
+  title.style.fontSize = "32px";
+  title.style.fontWeight = "bold";
+  title.style.textAlign = "center";
+  title.style.marginBottom = "20px";
+
+  container.appendChild(title);
+  container.appendChild(table.cloneNode(true));
+  container.appendChild(document.getElementById("current-date").cloneNode(true));
+  container.appendChild(document.getElementById("price-note").cloneNode(true));
+
+  document.body.appendChild(container);
+
+  html2canvas(container, {scale:2}).then(canvas => {
+    if(type==='png'){
+      const link = document.createElement("a");
+      link.download = 'table.png';
+      link.href = canvas.toDataURL();
+      link.click();
+    } else if(type==='pdf'){
+      const { jsPDF } = window.jspdf;
+      const pdfWidth = 210; // A4 mm
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgData = canvas.toDataURL('image/png');
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save('table.pdf');
+    }
+    document.body.removeChild(container);
+  });
+}
+
+document.getElementById("export-png-btn").onclick = ()=>generateExport('png');
+document.getElementById("export-pdf-btn").onclick = ()=>generateExport('pdf');
+
+// دکمه ریست
+document.getElementById("reset-btn").onclick = () => {
+  activeFilters = { subcategory: [] };
+  createFilters(allData);
+  renderTable();
+};
+</script>
+</body>
+</html>
+
+  
