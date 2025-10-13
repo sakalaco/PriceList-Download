@@ -73,9 +73,8 @@
     <tr>
       <th>نام محصول<br><span class="small-text">*** تمامی قیمت ها به تومان می باشد ***</span></th>
       <th>طرح عمومی</th>
-      <th> چاپ اختصاصی </th>
-      <th>چاپ اختصاصی <br><span class="small-text">زیر 1000 عدد</span></th>
-      <th>چاپ اختصاصی <br><span class="small-text">بالای 1000 عدد</span></th>
+      <th> چاپ اختصاصی <br><span class="small-text">رنگی</span></th>
+      <th>چاپ اختصاصی <br><span class="small-text">مونو کالر</span></th>
       <th>قیمت درب</th>
     </tr>
   </thead>
@@ -233,7 +232,6 @@ function renderTable() {
       <td>${formatNumber(item.price_omomi)}</td>
       <td>${formatNumber(item.price_digital)}</td>
       <td>${formatNumber(item.price_1000)}</td>
-      <td>${formatNumber(item.price_box)}</td>
       <td>${formatNumber(item.door)}</td>
     `;
     tbody.appendChild(tr);
