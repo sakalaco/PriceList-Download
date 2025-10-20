@@ -296,14 +296,17 @@ document.getElementById("export-png-btn").onclick = () => {
   });
 };
 
-// دانلود PDF جمع و جور با باکس متناسب
+
+// دانلود PDF با نام دلخواه و تاریخ شمسی به‌صورت "۲۸ مهر"
 document.getElementById("export-pdf-btn").onclick = () => {
   const container = document.getElementById("final-list-container");
   const table = document.getElementById("final-table");
   const firstColCells = table.querySelectorAll('th:first-child, td:first-child');
 
+  // پنهان کردن ستون حذف
   firstColCells.forEach(c => c.style.display = 'none');
 
+  // تنظیمات جمع و جور
   table.style.width = 'auto';
   table.querySelectorAll('th, td').forEach(cell => {
     cell.style.whiteSpace = 'nowrap';
@@ -314,14 +317,44 @@ document.getElementById("export-pdf-btn").onclick = () => {
   container.style.display = 'inline-block';
   container.style.width = 'auto';
 
+  // پرسیدن نام فایل از کاربر
+  const fileName = prompt("نام فایل را وارد کنید");
+  if (fileName === null) { // اگر لغو کرد
+    firstColCells.forEach(c => c.style.display = '');
+    table.style.width = '';
+    table.querySelectorAll('th, td').forEach(cell => {
+      cell.style.whiteSpace = '';
+      cell.style.padding = '';
+      cell.style.fontSize = '';
+    });
+    container.style.display = '';
+    container.style.width = '';
+    return;
+  }
+
+  // تبدیل اعداد فارسی به انگلیسی
+  const toEnglishDigits = str => str.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+
+  // تاریخ شمسی با نام ماه فارسی
+  const months = ["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"];
+  const date = new Date();
+  const fa = new Intl.DateTimeFormat('fa-IR', { day: 'numeric', month: 'numeric' }).formatToParts(date);
+  const day = fa.find(p => p.type === 'day').value;
+  const monthFa = fa.find(p => p.type === 'month').value;
+  const monthIndex = parseInt(toEnglishDigits(monthFa), 10) - 1;
+  const monthName = months[monthIndex];
+  const formattedDate = `${day} ${monthName}`;
+
+  // خروجی PDF
   html2canvas(container).then(canvas => {
     const imgData = canvas.toDataURL('image/png');
     const pdf = new window.jspdf.jsPDF('p', 'pt', 'a4');
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
     pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-    pdf.save(`final-table-${new Date().getTime()}.pdf`);
+    pdf.save(`${fileName} - ${formattedDate}.pdf`);
 
+    // بازگرداندن استایل‌ها
     firstColCells.forEach(c => c.style.display = '');
     table.style.width = '';
     table.querySelectorAll('th, td').forEach(cell => {
@@ -333,6 +366,10 @@ document.getElementById("export-pdf-btn").onclick = () => {
     container.style.width = '';
   });
 };
+
+
+
+
 
 
 
